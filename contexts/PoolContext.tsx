@@ -1,5 +1,6 @@
 "use client"
-import { createContext, useContext, useState, ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { supabase } from "@/lib/supabase"
 
 interface PoolMember {
     userId: string
@@ -19,15 +20,15 @@ interface Pool {
 
 interface PoolContextType {
     pools: Pool[]
-    createPool: (maxMembers: number, destination: string) => string
-    joinPool: (poolId: string, member: PoolMember) => boolean
+    createPool: (maxMembers: number, destination: string) => Promise<string>
+    joinPool: (poolId: string, member: PoolMember) => Promise<boolean>
     getPool: (poolId: string) => Pool | undefined
     openPools: Pool[]
     fullPools: Pool[]
-    myJoinedPoolIds: string[]          // ← EKLE
-    trackJoin: (poolId: string) => void // ← EKLE
+    myJoinedPoolIds: string[]
+    trackJoin: (poolId: string) => void
+    loading: boolean
 }
-
 
 const PoolContext = createContext<PoolContextType | null>(null)
 
@@ -37,47 +38,167 @@ const POOL_SHIPPING: Record<string, number> = {
 
 export function PoolProvider({ children }: { children: ReactNode }) {
     const [pools, setPools] = useState<Pool[]>([])
-
     const [myJoinedPoolIds, setMyJoinedPoolIds] = useState<string[]>([])
+    const [loading, setLoading] = useState(true)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+    // Giriş yapan kullanıcının ID'sini al
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) setCurrentUserId(user.id)
+        })
+    }, [])
+
+    // Veritabanından paketleri çek
+    const fetchPools = async () => {
+        const { data: poolsData, error } = await supabase
+            .from('pools')
+            .select('*')
+            .order('created_at', { ascending: false })
+
+        if (error) {
+            console.error("Paketler yüklenemedi:", error)
+            setLoading(false)
+            return
+        }
+
+        if (!poolsData) {
+            setPools([])
+            setLoading(false)
+            return
+        }
+
+        // Her paket için üyelerini çek
+        const fullPools: Pool[] = await Promise.all(
+            poolsData.map(async (p: any) => {
+                const { data: membersData } = await supabase
+                    .from('pool_members')
+                    .select('*')
+                    .eq('pool_id', p.id)
+
+                const members: PoolMember[] = (membersData || []).map((m: any) => ({
+                    userId: m.user_id,
+                    name: m.name,
+                    items: m.items || []
+                }))
+
+                const memberCount = members.length || 1
+                return {
+                    id: p.id,
+                    maxMembers: p.max_members,
+                    members,
+                    shippingCost: p.shipping_cost,
+                    perPersonCost: p.shipping_cost / memberCount,
+                    status: p.status,
+                    destination: p.destination
+                }
+            })
+        )
+
+        setPools(fullPools)
+
+        // Kullanıcının katıldığı paketleri hesapla (veritabanından)
+        if (currentUserId) {
+            const joinedIds = fullPools
+                .filter(p => p.members.some(m => m.userId === currentUserId))
+                .map(p => p.id)
+            setMyJoinedPoolIds(joinedIds)
+        }
+
+        setLoading(false)
+    }
+
+    // Sayfa yüklendiğinde ve kullanıcı ID değiştiğinde paketleri çek
+    useEffect(() => {
+        fetchPools()
+
+        // Realtime: paketler veya üyeler değişince otomatik güncelle
+        const poolChannel = supabase
+            .channel('pools-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pools' }, fetchPools)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pool_members' }, fetchPools)
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(poolChannel)
+        }
+    }, [currentUserId])
 
     const trackJoin = (poolId: string) => {
         setMyJoinedPoolIds(prev => prev.includes(poolId) ? prev : [...prev, poolId])
     }
 
-    const createPool = (maxMembers: number, destination: string) => {
-        const id = `pool-${Date.now()}`
+    const createPool = async (maxMembers: number, destination: string): Promise<string> => {
         const shippingCost = POOL_SHIPPING[destination] || 45
-        const newPool: Pool = {
-            id, maxMembers, members: [],
-            shippingCost,
-            perPersonCost: shippingCost / maxMembers,
-            status: "open",
-            destination
+
+        const { data, error } = await supabase
+            .from('pools')
+            .insert({
+                max_members: maxMembers,
+                shipping_cost: shippingCost,
+                status: 'open',
+                destination
+            })
+            .select()
+            .single()
+
+        if (error || !data) {
+            console.error("Paket oluşturulamadı:", error)
+            alert("Paket oluşturulamadı: " + (error?.message || ""))
+            return ""
         }
-        setPools(prev => [...prev, newPool])
-        return id
+
+        await fetchPools()
+        return data.id
     }
 
-    const joinPool = (poolId: string, member: PoolMember) => {
-        let success = false
-        setPools(prev => prev.map(p => {
-            if (p.id !== poolId || p.status !== "open") return p
+    const joinPool = async (poolId: string, member: PoolMember): Promise<boolean> => {
+        // Kullanıcı ID'sini belirle: giriş yapmış kullanıcı varsa onu kullan
+        const userId = currentUserId || member.userId
 
-            // Aynı isimle tekrar katılım engeli
-            const alreadyJoined = p.members.some(
-                m => m.name.toLowerCase().trim() === member.name.toLowerCase().trim()
-            )
-            if (alreadyJoined) return p
+        // Önce veritabanında bu kullanıcı zaten bu pakete katılmış mı kontrol et
+        const { data: existingMember } = await supabase
+            .from('pool_members')
+            .select('id')
+            .eq('pool_id', poolId)
+            .eq('user_id', userId)
+            .maybeSingle()
 
-            const updated = { ...p, members: [...p.members, member] }
-            if (updated.members.length >= p.maxMembers) {
-                updated.status = "full"
-            }
-            updated.perPersonCost = p.shippingCost / updated.members.length
-            success = true
-            return updated
-        }))
-        return success
+        if (existingMember) {
+            alert("Bu pakete zaten katıldınız!")
+            return false
+        }
+
+        // Paketin durumunu kontrol et
+        const pool = pools.find(p => p.id === poolId)
+        if (!pool || pool.status !== 'open') return false
+
+        // Üyeyi veritabanına ekle
+        const { error } = await supabase
+            .from('pool_members')
+            .insert({
+                pool_id: poolId,
+                user_id: userId,
+                name: member.name,
+                items: member.items
+            })
+
+        if (error) {
+            console.error("Pakete katılınamadı:", error)
+            return false
+        }
+
+        // Paket doldu mu kontrol et
+        const newMemberCount = pool.members.length + 1
+        if (newMemberCount >= pool.maxMembers) {
+            await supabase
+                .from('pools')
+                .update({ status: 'full' })
+                .eq('id', poolId)
+        }
+
+        await fetchPools()
+        return true
     }
 
     const getPool = (poolId: string) => pools.find(p => p.id === poolId)
@@ -85,8 +206,7 @@ export function PoolProvider({ children }: { children: ReactNode }) {
     const fullPools = pools.filter(p => p.status === "full")
 
     return (
-        <PoolContext.Provider value={{ pools, createPool, joinPool, getPool, openPools, fullPools, myJoinedPoolIds, trackJoin }}>
-
+        <PoolContext.Provider value={{ pools, createPool, joinPool, getPool, openPools, fullPools, myJoinedPoolIds, trackJoin, loading }}>
             {children}
         </PoolContext.Provider>
     )
@@ -97,3 +217,4 @@ export const usePool = () => {
     if (!ctx) throw new Error("usePool must be used within PoolProvider")
     return ctx
 }
+

@@ -19,30 +19,31 @@ export const vibeThemes = {
   }
 };
 
-// lib/mockProducts.ts dosyanı aç ve ürünlerin vibe kısımlarını şöyle değiştir:
-export const mockProducts = [
+import { Product } from "./supabase-admin";
+
+export const mockProducts: Product[] = [
   {
-    id: "1",
+    id: 1,
     name: "Premium Keten Gömlek",
     price: 1450,
     image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800&q=80",
     brand: "SAHİL ÖZEL",
-    vibe: "sahil" // ["sahil"] yerine sadece "sahil"
+    vibe: "sahil"
   },
   {
-    id: "2",
+    id: 2,
     name: "Profesyonel Dağ Botu",
     price: 4200,
     image: "https://images.unsplash.com/photo-1520639889410-d65c36fcc9ca?w=800&q=80",
     brand: "PEAK TRACKING",
-    vibe: "tracking" // ["tracking"] yerine sadece "tracking"
+    vibe: "tracking"
   },
   {
-    id: "3",
+    id: 3,
     name: "Performans Koşu Taytı",
     price: 1850,
     image: "https://images.unsplash.com/photo-1539185441755-769473a23570?w=800&q=80",
     brand: "SPOR PRO",
-    vibe: "spor" // ["spor"] yerine sadece "spor"
+    vibe: "spor"
   }
 ];

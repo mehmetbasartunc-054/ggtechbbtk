@@ -7,6 +7,7 @@ export interface Product {
   image: string
   brand: string
   vibe?: string
+  sex?: string
   created_at?: string
 }
 

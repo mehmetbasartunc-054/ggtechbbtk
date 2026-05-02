@@ -8,6 +8,7 @@ interface CartItem {
     image: string
     brand?: string
     quantity: number
+    selectedSize?: string
 }
 
 interface CartContextType {
@@ -36,16 +37,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const addItem = (product: any) => {
+        const sizeKey = product.selectedSize || '';
         setItems(prev => {
-            const existing = prev.find(i => i.id === product.id)
+            const existing = prev.find(i => i.id === product.id && i.selectedSize === sizeKey)
             if (existing) {
                 return prev.map(i =>
-                    i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+                    (i.id === product.id && i.selectedSize === sizeKey) ? { ...i, quantity: i.quantity + 1 } : i
                 )
             }
             return [...prev, {
                 id: product.id, name: product.name, price: product.price,
-                image: product.image, brand: product.brand, quantity: 1
+                image: product.image, brand: product.brand, quantity: 1,
+                selectedSize: sizeKey
             }]
         })
 

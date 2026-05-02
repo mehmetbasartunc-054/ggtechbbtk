@@ -6,7 +6,7 @@ import { useState } from 'react';
 // Sunumda yapay zekanın gerçek cevap vermesi için FALSE yapmayı unutma!
 const DEV_MODE = false;
 
-export default function VibeSearch({ onAnalysisComplete }: { onAnalysisComplete: (vibe: string) => void }) {
+export default function VibeSearch({ onAnalysisComplete }: { onAnalysisComplete: (analysis: { vibe: string, sex?: string | null, size?: string | null }) => void }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -35,22 +35,47 @@ export default function VibeSearch({ onAnalysisComplete }: { onAnalysisComplete:
         await new Promise(resolve => setTimeout(resolve, 3500));
         const q = query.toLowerCase();
         if (q.includes('spor') || q.includes('koş') || q.includes('fitness') || q.includes('gym')) {
-          onAnalysisComplete('spor');
+          onAnalysisComplete({ vibe: 'spor' });
         } else if (q.includes('doğa') || q.includes('kamp') || q.includes('trek') || q.includes('tracking')) {
-          onAnalysisComplete('tracking');
+          onAnalysisComplete({ vibe: 'tracking' });
         } else {
-          onAnalysisComplete('sahil');
+          onAnalysisComplete({ vibe: 'sahil' });
         }
         return;
       }
 
       // GERÇEK API ÇAĞRISI
-      const promptText = `Sen bir e-ticaret stil danışmanısın. Kullanıcı şunu yazdı: "${query}". 
-Bu metne en uygun kategoriyi şu üçünden biri olarak seç: 'sahil', 'tracking', veya 'spor'. 
-Cevap olarak SADECE seçtiğin kelimeyi ver, başka hiçbir şey yazma.`;
+      const promptText = `Sen bir e-ticaret yapay zeka stil danışmanısın. Kullanıcının yazdığı cümleyi analiz edeceksin.
+
+Kullanıcı şunu yazdı: "${query}"
+
+GÖREV: Bu metni analiz et ve aşağıdaki JSON formatında cevap ver.
+
+CİNSİYET TESPİTİ KURALLARI (ÇOK ÖNEMLİ):
+- "erkek", "beyefendi", "bay", "adam", "abi", "abim", "takım elbise", "kravat", "erkek gömlek" gibi kelimeler varsa → sex: "erkek"
+- "kadın", "bayan", "hanımefendi", "ablam", "elbise", "etek", "topuklu", "kadın ayakkabı" gibi kelimeler varsa → sex: "kadin"
+- "erkeğim", "erkek olarak", "benim için erkek", "kız arkadaşıma" (bu durumda kadın ürünü) gibi bağlamsal ipuçları da değerlendir
+- "kız arkadaşıma", "sevgilime kadın", "annem için" gibi ifadeler kadın ürünü demektir
+- "erkek arkadaşıma", "babam için", "abime" gibi ifadeler erkek ürünü demektir
+- Eğer cinsiyet hiç anlaşılamıyorsa → sex: null
+
+TARZ TESPİTİ KURALLARI:
+- Deniz, plaj, yaz, tatil, sahil, güneş, mayo → vibe: "sahil"
+- Doğa, kamp, trekking, dağ, yürüyüş, outdoor → vibe: "tracking"  
+- Spor, fitness, koşu, gym, antrenman, egzersiz → vibe: "spor"
+- Emin olamıyorsan en yakın kategoriyi seç
+
+BEDEN TESPİTİ: Eğer metinde XS, S, M, L, XL, XXL gibi bir beden yazıyorsa onu al, yoksa null yap.
+
+CEVAP FORMATI (SADECE BU JSON'U DÖNDÜR, BAŞKA HİÇBİR ŞEY YAZMA):
+{
+  "vibe": "sahil veya tracking veya spor",
+  "sex": "erkek veya kadin veya null",
+  "size": "XS veya S veya M veya L veya XL veya XXL veya null"
+}`;
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`,
 
         {
           method: "POST",
@@ -64,22 +89,46 @@ Cevap olarak SADECE seçtiğin kelimeyi ver, başka hiçbir şey yazma.`;
       );
 
       const data = await res.json();
+      console.log("Gemini API Yanıtı:", JSON.stringify(data).substring(0, 500));
 
       if (data.error) {
-        console.error("API Hatası:", data.error.message);
-        onAnalysisComplete('sahil');
+        console.error("API Hatası DETAY:", JSON.stringify(data.error));
+        if (data.error.message?.includes('quota') || data.error.message?.includes('rate')) {
+          alert("\u26a0\ufe0f API limit a\u015f\u0131ld\u0131! L\u00fctfen 1 dakika bekleyip tekrar deneyin.");
+        } else {
+          alert("API Hatas\u0131: " + data.error.message);
+        }
+        setLoading(false);
         return;
       }
 
-      const rawVibe = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase() || 'sahil';
+      const rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
+      const jsonStr = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      let analysisResult = { vibe: 'sahil', sex: null, size: null } as any;
 
-      if (rawVibe.includes('tracking')) onAnalysisComplete('tracking');
-      else if (rawVibe.includes('spor')) onAnalysisComplete('spor');
-      else onAnalysisComplete('sahil');
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.vibe && ['sahil', 'tracking', 'spor'].includes(parsed.vibe.toLowerCase())) {
+          analysisResult.vibe = parsed.vibe.toLowerCase();
+        } else {
+          const textLower = jsonStr.toLowerCase();
+          if (textLower.includes('tracking')) analysisResult.vibe = 'tracking';
+          else if (textLower.includes('spor')) analysisResult.vibe = 'spor';
+        }
+        if (parsed.sex) analysisResult.sex = parsed.sex.toLowerCase();
+        if (parsed.size) analysisResult.size = parsed.size.toUpperCase();
+      } catch (error) {
+        console.error("JSON Parse Hatası:", error);
+        const textLower = jsonStr.toLowerCase();
+        if (textLower.includes('tracking')) analysisResult.vibe = 'tracking';
+        else if (textLower.includes('spor')) analysisResult.vibe = 'spor';
+      }
+
+      onAnalysisComplete(analysisResult);
 
     } catch (error) {
       console.error("Bağlantı Hatası:", error);
-      onAnalysisComplete('sahil');
+      onAnalysisComplete({ vibe: 'sahil' });
     } finally {
       setLoading(false);
       setQuery('');

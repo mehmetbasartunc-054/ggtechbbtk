@@ -15,6 +15,7 @@ interface Product {
   image: string
   brand: string
   vibe?: string
+  sex?: string
   created_at?: string
 }
 
@@ -38,6 +39,7 @@ export default function AdminPage() {
     image: "",
     brand: "",
     vibe: "sahil",
+    sex: "",
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string>("")
@@ -51,7 +53,15 @@ export default function AdminPage() {
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error || !user) {
-      router.push("/auth/login/seller")
+      router.push("/auth/login")
+      return
+    }
+
+    // Hesap türü kontrolü - sadece ticari hesaplar admin paneline girebilir
+    const accountType = user.user_metadata?.account_type
+    if (accountType !== 'ticari') {
+      alert("Bu sayfaya sadece ticari (satıcı) hesaplar erişebilir.")
+      router.push("/")
       return
     }
 
@@ -78,7 +88,7 @@ export default function AdminPage() {
   }
 
   function resetForm() {
-    setFormData({ name: "", price: "", image: "", brand: "", vibe: "sahil" })
+    setFormData({ name: "", price: "", image: "", brand: "", vibe: "sahil", sex: "" })
     setImageFile(null)
     setImagePreview("")
     setShowForm(false)
@@ -93,6 +103,7 @@ export default function AdminPage() {
       image: product.image,
       brand: product.brand,
       vibe: product.vibe || "sahil",
+      sex: product.sex || "",
     })
     setImagePreview(product.image)
     setImageFile(null)
@@ -136,6 +147,7 @@ export default function AdminPage() {
         image: imageUrl,
         brand: formData.brand,
         vibe: formData.vibe,
+        sex: formData.sex || null,
       }
 
       if (editingProduct) {
@@ -157,8 +169,9 @@ export default function AdminPage() {
 
       resetForm()
       fetchProducts()
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "An error occurred")
+    } catch (error: any) {
+      console.error("Supabase Admin Hata Detayı:", error);
+      toast.error(error?.message || error?.details || "Bir hata oluştu (Konsolu kontrol et)")
     } finally {
       setSubmitting(false)
     }
@@ -287,6 +300,22 @@ export default function AdminPage() {
                     className="w-full px-4 py-2.5 rounded-xl bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)] text-[oklch(0.95_0_0)] placeholder:text-[oklch(0.4_0_0)] focus:outline-none focus:border-[oklch(0.65_0.25_295)] transition-colors"
                     placeholder="0.00"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-[oklch(0.7_0_0)] mb-1.5">Cinsiyet (Sex)</label>
+                  <select
+                    value={formData.sex}
+                    onChange={(e) => setFormData({ ...formData, sex: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-[oklch(0.15_0.02_280)] border border-[oklch(0.25_0.03_280)] text-[oklch(0.95_0_0)] focus:outline-none focus:border-[oklch(0.65_0.25_295)] transition-colors"
+                  >
+                    <option value="">Seçiniz</option>
+                    <option value="unisex">Unisex</option>
+                    <option value="kadin">Kadın</option>
+                    <option value="erkek">Erkek</option>
+                  </select>
                 </div>
               </div>
 

@@ -29,20 +29,21 @@ export default function PoolPage() {
     const [joinedPools, setJoinedPools] = useState<Set<string>>(new Set())
     const [joinErrors, setJoinErrors] = useState<Record<string, string>>({})
 
-    const handleCreate = () => {
+    const handleCreate = async () => {
         if (!createName.trim()) return alert("İsminizi girin")
         if (items.length === 0) return alert("Paket oluşturmak için önce sepete ürün ekleyin")
 
-        const id = createPool(maxMembers, destination)
+        const id = await createPool(maxMembers, destination)
+        if (!id) return
+
         const cartItems = items.map(i => ({ name: i.name, price: i.price * i.quantity }))
-        joinPool(id, { userId: `user-${Date.now()}`, name: createName, items: cartItems })
+        await joinPool(id, { userId: `user-${Date.now()}`, name: createName, items: cartItems })
         trackJoin(id)
         setJoinedPools(prev => new Set([...prev, id]))
-
         setCreatedPoolId(id)
     }
 
-    const handleJoin = (poolId: string) => {
+    const handleJoin = async (poolId: string) => {
         const name = joinNames[poolId]?.trim()
         if (!name) return alert("İsminizi girin")
         if (items.length === 0) return alert("Pakete katılmak için önce sepete ürün ekleyin")
@@ -57,13 +58,10 @@ export default function PoolPage() {
         }
 
         const cartItems = items.map(i => ({ name: i.name, price: i.price * i.quantity }))
-        const success = joinPool(poolId, { userId: `user-${Date.now()}`, name, items: cartItems })
-        trackJoin(poolId)
-        setJoinedPools(prev => new Set([...prev, poolId]))
-        setJoinErrors(prev => ({ ...prev, [poolId]: "" }))
-
+        const success = await joinPool(poolId, { userId: `user-${Date.now()}`, name, items: cartItems })
 
         if (success) {
+            trackJoin(poolId)
             setJoinedPools(prev => new Set([...prev, poolId]))
             setJoinErrors(prev => ({ ...prev, [poolId]: "" }))
         } else {

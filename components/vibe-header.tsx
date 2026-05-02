@@ -13,12 +13,12 @@ export function VibeHeader() {
   const router = useRouter()
   const { totalItems } = useCart()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [user, setUser] = useState<{ email: string } | null>(null)
+  const [user, setUser] = useState<{ email: string; accountType?: string } | null>(null)
 
-  // Arkadaşlarının eklediği Supabase kullanıcı kontrolü
+  // Supabase kullanıcı kontrolü
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUser({ email: user.email! })
+      if (user) setUser({ email: user.email!, accountType: user.user_metadata?.account_type })
     })
   }, [])
 
@@ -33,7 +33,7 @@ export function VibeHeader() {
       <header className="w-full py-6 px-8 flex justify-between items-center fixed top-0 left-0 right-0 z-[9999] bg-black/20 backdrop-blur-sm border-b border-white/5 font-sans">
         
         {/* 1. BÖLÜM: SENİN PREMIUM LOGO TASARIMIN (DOKUNULMADI) */}
-        <Link href="/" className="flex items-center gap-4 group cursor-pointer overflow-visible">
+        <div onClick={() => { window.location.href = '/' }} className="flex items-center gap-4 group cursor-pointer overflow-visible">
           <Logo />
           
           <div className="flex flex-col items-start leading-none overflow-visible">
@@ -50,7 +50,7 @@ export function VibeHeader() {
               Neural Shopping Experience
             </p>
           </div>
-        </Link>
+        </div>
         
         {/* 2. BÖLÜM: TÜM PANEL VE NAVİGASYON BAĞLANTILARI */}
         <nav className="flex items-center gap-3 md:gap-5">
@@ -64,14 +64,16 @@ export function VibeHeader() {
             <Package2 className="w-5 h-5" />
           </Link>
 
-          {/* ADMIN PANELİ */}
-          <Link 
-            href="/admin" 
-            className="text-zinc-400 hover:text-purple-400 transition-colors p-2 rounded-xl hover:bg-white/5"
-            title="Admin Paneli"
-          >
-            <Shield className="w-5 h-5" />
-          </Link>
+          {/* ADMIN PANELİ - Sadece ticari hesaplara görünür */}
+          {user?.accountType === 'ticari' && (
+            <Link 
+              href="/admin" 
+              className="text-zinc-400 hover:text-purple-400 transition-colors p-2 rounded-xl hover:bg-white/5"
+              title="Admin Paneli"
+            >
+              <Shield className="w-5 h-5" />
+            </Link>
+          )}
           
           {/* SEPET (Drawer açan yeni versiyon) */}
           <button 
@@ -113,7 +115,7 @@ export function VibeHeader() {
           ) : (
             <div className="flex items-center gap-2">
               <Link 
-                href="/auth/login/user" 
+                href="/auth/login" 
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-white hover:bg-white hover:text-black transition-all uppercase tracking-[0.2em]"
               >
                 <User className="w-4 h-4" />
@@ -121,9 +123,9 @@ export function VibeHeader() {
               </Link>
 
               <Link 
-                href="/auth/login/seller" 
+                href="/auth/register" 
                 className="text-zinc-500 hover:text-emerald-400 transition-colors p-2 rounded-xl hover:bg-white/5"
-                title="Satıcı Girişi"
+                title="Kayıt Ol"
               >
                 <Package className="w-5 h-5" />
               </Link>

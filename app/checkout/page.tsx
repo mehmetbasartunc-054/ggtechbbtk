@@ -7,7 +7,28 @@ import { supabase } from "@/lib/supabase"
 import { AmbientBackground } from "@/components/ambient-background"
 import { useCart } from "@/contexts/CartContext"
 
-const CITIES = ["Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın", "Balıkesir", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Isparta", "Mersin", "İstanbul", "İzmir", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir", "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman", "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"].sort((a, b) => a.localeCompare(b));
+const TR_CITIES = [
+  "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Aksaray", "Amasya", "Ankara", "Antalya", "Ardahan", "Artvin",
+  "Aydın", "Balıkesir", "Bartın", "Batman", "Bayburt", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur",
+  "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Düzce", "Edirne", "Elazığ", "Erzincan",
+  "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari", "Hatay", "Iğdır", "Isparta", "İstanbul",
+  "İzmir", "Kahramanmaraş", "Karabük", "Karaman", "Kars", "Kastamonu", "Kayseri", "Kilis", "Kırıkkale", "Kırklareli",
+  "Kırşehir", "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Mardin", "Mersin", "Muğla", "Muş",
+  "Nevşehir", "Niğde", "Ordu", "Osmaniye", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas",
+  "Şanlıurfa", "Şırnak", "Tekirdağ", "Tokat", "Trabzon", "Tunceli", "Uşak", "Van", "Yalova", "Yozgat", "Zonguldak"
+].sort((a, b) => a.localeCompare(b, 'tr'));
+
+const COUNTRIES = [
+  { value: "TR", label: "Türkiye" },
+  { value: "US", label: "Amerika Birleşik Devletleri" },
+  { value: "DE", label: "Almanya" },
+  { value: "GB", label: "İngiltere" },
+  { value: "FR", label: "Fransa" },
+  { value: "NL", label: "Hollanda" },
+  { value: "IT", label: "İtalya" },
+  { value: "ES", label: "İspanya" },
+  { value: "OTHER", label: "Diğer" },
+];
 
 // DINAMIK KONUM FONKSIYONU
 const getVibeLocation = (city: string) => {
@@ -43,8 +64,9 @@ export default function CheckoutPage() {
   const [isCardFlipped, setIsCardFlipped] = useState(false)
 
   const [formData, setFormData] = useState({
-    fullName: "", email: "", phone: "", address: "", city: "", zipCode: ""
+    fullName: "", email: "", phone: "", address: "", country: "TR", city: "", district: "", zipCode: ""
   })
+  const [phoneError, setPhoneError] = useState("")
 
   const [paymentData, setPaymentData] = useState({
     cardHolder: "", cardNumber: "", expiry: "", cvc: ""
@@ -61,9 +83,12 @@ export default function CheckoutPage() {
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '').substring(0, 11);
-    if (value.length > 0 && value[0] !== '0') value = '0' + value;
-    if (value.length > 1 && value[1] !== '5') value = value[0] + '5' + value.substring(2);
     setFormData({ ...formData, phone: value });
+    if (value.length > 0 && value.length < 11) {
+      setPhoneError("Telefon numarası 11 haneli olmalıdır");
+    } else {
+      setPhoneError("");
+    }
   };
 
   const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +116,9 @@ export default function CheckoutPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (items.length === 0) return alert("Sepetiniz boş")
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 11) return alert("Telefon numarası tam 11 haneli olmalıdır")
+    if (formData.zipCode.length === 0) return alert("Posta kodu giriniz")
     setSubmitting(true)
 
     setSubmitting(true)
@@ -200,13 +228,17 @@ export default function CheckoutPage() {
                     placeholder="Ad Soyad"
                     className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600"
                   />
-                  <input
-                    type="tel" required
-                    value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="Telefon"
-                    className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600"
-                  />
+                  <div className="flex flex-col">
+                    <input
+                      type="tel" required
+                      value={formData.phone}
+                      onChange={handlePhoneChange}
+                      placeholder="Telefon (05xxxxxxxxx)"
+                      maxLength={11}
+                      className={`h-12 px-4 rounded-xl bg-black/40 border text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600 ${phoneError ? 'border-red-500/50' : 'border-white/10'}`}
+                    />
+                    {phoneError && <span className="text-red-400 text-[10px] mt-1 pl-1">{phoneError}</span>}
+                  </div>
                   <input
                     type="email" required
                     value={formData.email}
@@ -214,11 +246,80 @@ export default function CheckoutPage() {
                     placeholder="E-posta"
                     className="md:col-span-2 h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600"
                   />
+
+                  {/* ÜLKE */}
+                  <div className="flex flex-col">
+                    <label className="text-zinc-500 text-[10px] uppercase font-bold mb-1.5 pl-1">Ülke</label>
+                    <select
+                      required
+                      value={formData.country}
+                      onChange={e => setFormData({ ...formData, country: e.target.value, city: "", district: "" })}
+                      className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all appearance-none cursor-pointer"
+                    >
+                      {COUNTRIES.map(c => (
+                        <option key={c.value} value={c.value} className="bg-zinc-900 text-white">{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* İL / ŞEHİR */}
+                  <div className="flex flex-col">
+                    <label className="text-zinc-500 text-[10px] uppercase font-bold mb-1.5 pl-1">İl / Şehir</label>
+                    {formData.country === "TR" ? (
+                      <select
+                        required
+                        value={formData.city}
+                        onChange={e => setFormData({ ...formData, city: e.target.value })}
+                        className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all appearance-none cursor-pointer"
+                        style={{ maxHeight: '200px' }}
+                      >
+                        <option value="" className="bg-zinc-900 text-zinc-500">Şehir seçiniz</option>
+                        {TR_CITIES.map(city => (
+                          <option key={city} value={city} className="bg-zinc-900 text-white">{city}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text" required
+                        value={formData.city}
+                        onChange={e => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="Şehir adı"
+                        className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600"
+                      />
+                    )}
+                  </div>
+
+                  {/* İLÇE */}
+                  <div className="flex flex-col">
+                    <label className="text-zinc-500 text-[10px] uppercase font-bold mb-1.5 pl-1">İlçe</label>
+                    <input
+                      type="text" required
+                      value={formData.district}
+                      onChange={e => setFormData({ ...formData, district: e.target.value })}
+                      placeholder="İlçe"
+                      className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600"
+                    />
+                  </div>
+
+                  {/* POSTA KODU */}
+                  <div className="flex flex-col">
+                    <label className="text-zinc-500 text-[10px] uppercase font-bold mb-1.5 pl-1">Posta Kodu</label>
+                    <input
+                      type="text" required
+                      value={formData.zipCode}
+                      onChange={handleZipChange}
+                      placeholder="Posta Kodu"
+                      inputMode="numeric"
+                      maxLength={5}
+                      className="h-12 px-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600"
+                    />
+                  </div>
+
                   <textarea
                     required
                     value={formData.address}
                     onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Teslimat Adresi"
+                    placeholder="Açık Teslimat Adresi (Mahalle, Sokak, Kapı No...)"
                     rows={3}
                     className="md:col-span-2 p-4 rounded-xl bg-black/40 border border-white/10 text-white focus:ring-2 focus:ring-[oklch(0.65_0.25_295)] outline-none transition-all placeholder:text-zinc-600 resize-none"
                   />
@@ -302,8 +403,11 @@ export default function CheckoutPage() {
                   <p className="text-zinc-500 text-center py-4">Sepetiniz boş</p>
                 ) : (
                   items.map(item => (
-                    <div key={item.id} className="flex justify-between">
-                      <span className="text-zinc-400">{item.name} x{item.quantity}</span>
+                    <div key={`${item.id}-${item.selectedSize}`} className="flex justify-between items-center">
+                      <div className="flex flex-col">
+                        <span className="text-zinc-400">{item.name} x{item.quantity}</span>
+                        {item.selectedSize && <span className="text-emerald-500 text-[10px] font-bold uppercase">Beden: {item.selectedSize}</span>}
+                      </div>
                       <span className="text-white">${(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   ))

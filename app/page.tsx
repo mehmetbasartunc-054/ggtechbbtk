@@ -82,8 +82,9 @@ export default function VibeCartPage() {
     setShowBundleModal(false);
   };
 
-  const handleVibeMatch = async (selectedVibe: string) => {
-    const validVibe = (Object.keys(vibeThemes).includes(selectedVibe) ? selectedVibe : 'sahil') as keyof typeof vibeThemes;
+  const handleVibeMatch = async (analysis: { vibe: string, sex?: string | null, size?: string | null }) => {
+    const validVibe = (Object.keys(vibeThemes).includes(analysis.vibe) ? analysis.vibe : 'sahil') as keyof typeof vibeThemes;
+    const { sex, size } = analysis;
 
     setCurrentVibe(validVibe);
     setIsRevealing(true);
@@ -95,19 +96,32 @@ export default function VibeCartPage() {
 
     setTimeout(async () => {
       try {
-        const { data, error } = await supabase
+        let dbQuery = supabase
           .from('products')
           .select('*')
           .eq('vibe', validVibe);
 
-        let finalProducts = [];
+        if (sex && sex !== 'unisex') dbQuery = dbQuery.eq('sex', sex);
 
-        if (error || !data || data.length === 0) {
-          finalProducts = mockProducts.filter(p =>
-            String(p.vibe).toLowerCase().includes(String(validVibe).toLowerCase())
-          );
-        } else {
-          finalProducts = data;
+        let { data, error } = await dbQuery;
+
+        if (error) {
+          console.error("Veritabanı hatası:", error);
+        }
+
+        // Eğer cinsiyet filtreli sorgu boş dönerse, cinsiyetsiz sadece vibe ile tekrar ara (Fallback)
+        if ((!data || data.length === 0) && sex && sex !== 'unisex') {
+          const { data: fallbackData } = await supabase.from('products').select('*').eq('vibe', validVibe);
+          data = fallbackData;
+        }
+
+        const finalProducts = data || [];
+
+        if (finalProducts.length === 0) {
+          alert(`Maalesef veritabanında '${validVibe}' tarzında hiçbir ürün bulunamadı.\nLütfen Admin panelinden bu kategoriye ürün ekleyin!`);
+          setIsRevealing(false);
+          setCurrentVibe(null);
+          return;
         }
 
         const enhancedProducts = finalProducts.map((p, index) => {
@@ -122,7 +136,8 @@ export default function VibeCartPage() {
             reason: generatedReason,
             aiReason: generatedReason,
             aiReasoning: generatedReason,
-            aiComment: generatedReason
+            aiComment: generatedReason,
+            suggestedSize: size
           };
         });
 
@@ -130,16 +145,7 @@ export default function VibeCartPage() {
 
       } catch (e) {
         console.error("Catch bloğuna düştü: ", e);
-        const match = mockProducts.filter(p =>
-          String(p.vibe).toLowerCase().includes(String(validVibe).toLowerCase())
-        );
-        const enhancedProducts = match.map(p => ({
-          ...p,
-          matchScore: Math.floor(Math.random() * (99 - 88 + 1)) + 88,
-          aiReason: getDynamicAIReason(p.name, validVibe),
-          aiReasoning: getDynamicAIReason(p.name, validVibe)
-        }));
-        setFilteredProducts(enhancedProducts);
+        setFilteredProducts([]);
       }
       setIsRevealing(false);
     }, 5000); 

@@ -23,10 +23,11 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
     const [destination, setDestination] = useState("EU")
     const [joinedPoolId, setJoinedPoolId] = useState<string | null>(null)
     const [createdPoolId, setCreatedPoolId] = useState<string | null>(null)
+    const [joinLoading, setJoinLoading] = useState(false)
 
     const cartItemsForPool = items.map(i => ({ name: i.name, price: i.price * i.quantity }))
 
-    const handleJoin = (poolId: string) => {
+    const handleJoin = async (poolId: string) => {
         if (!userName.trim()) return alert("İsminizi girin")
         if (items.length === 0) return alert("Önce sepete ürün ekleyin")
 
@@ -46,19 +47,27 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             return alert("Paket dolu!")
         }
 
-        joinPool(poolId, {
+        setJoinLoading(true)
+        const success = await joinPool(poolId, {
             userId: `user-${Date.now()}`,
             name: userName,
             items: cartItemsForPool,
         })
-        trackJoin(poolId)
-        setJoinedPoolId(poolId)
+        setJoinLoading(false)
+
+        if (success) {
+            trackJoin(poolId)
+            setJoinedPoolId(poolId)
+        }
     }
 
 
-    const handleCreate = () => {
-        const id = createPool(maxMembers, destination)
-        setCreatedPoolId(id)
+    const handleCreate = async () => {
+        if (items.length === 0) return alert("Önce sepete ürün ekleyin")
+        setJoinLoading(true)
+        const id = await createPool(maxMembers, destination)
+        if (id) setCreatedPoolId(id)
+        setJoinLoading(false)
     }
 
 
@@ -106,7 +115,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                             ) : (
                                 items.map(item => (
                                     <div
-                                        key={item.id}
+                                        key={`${item.id}-${item.selectedSize || ''}`}
                                         className="flex items-center gap-3 p-3 rounded-xl bg-[oklch(0.12_0.02_280)] border border-[oklch(0.18_0.02_280)]"
                                     >
                                         <img
@@ -116,6 +125,9 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                                         />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-white text-sm font-medium truncate">{item.name}</p>
+                                            {item.selectedSize && (
+                                                <span className="text-emerald-500 text-[10px] font-bold uppercase">Beden: {item.selectedSize}</span>
+                                            )}
                                             <p className="text-[oklch(0.65_0.25_295)] text-sm font-semibold">
                                                 ₺{(item.price * item.quantity).toFixed(2)}
                                             </p>

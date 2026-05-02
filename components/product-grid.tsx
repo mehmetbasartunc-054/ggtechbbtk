@@ -11,17 +11,12 @@ interface Product {
   image: string
   brand: string
   vibe?: string
+  sex?: string
 }
 
 interface ProductGridProps {
   products?: Product[]
 }
-
-const masonryPattern = [
-  "large", "small", "medium",
-  "small", "large", "small",
-  "medium", "medium"
-] as const
 
 export function ProductGrid({ products: externalProducts }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([])
@@ -73,16 +68,13 @@ export function ProductGrid({ products: externalProducts }: ProductGridProps) {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4">
-      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
-        {products.map((product, index) => (
-          <div key={product.id} className="break-inside-avoid mb-4">
-            <ProductCard
-              product={product}
-              size={masonryPattern[index % masonryPattern.length]}
-            />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {products.map((product) => (
+          <div key={product.id}>
+            <ProductCard product={product} />
           </div>
         ))}
       </div>
     </div>
   )
-}
+}
