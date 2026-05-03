@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { ArrowRight, Sparkles, Lock } from 'lucide-react';
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/contexts/ToastContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -36,7 +38,7 @@ export default function LoginPage() {
         router.push("/");
       }
     } catch (error: any) {
-      alert("Giriş başarısız: " + (error?.message || "Bilinmeyen hata"));
+      toast("Giriş başarısız: " + (error?.message || "Bilinmeyen hata"), "error");
     } finally {
       setLoading(false);
     }
